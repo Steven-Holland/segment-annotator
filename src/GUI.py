@@ -1,8 +1,37 @@
 import numpy as np
+import functools
 
 import utils
 from PyQt5.QtWidgets import *
-from PyQt5.QtGui import QPixmap, QImage
+from PyQt5.QtGui import QPixmap, QImage, QPainter, QBrush, QColor
+from PyQt5.QtCore import QPoint
+
+
+class ImageLabel(QLabel):
+    def __init__(self, img):
+        super().__init__()
+        
+        self.img = img
+        self.setPixmap(self.img)
+        
+        self.points = []
+        
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.drawPixmap(self.rect(), self.img)
+        painter.setBrush(QBrush(QColor('cyan')))
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        for pos in self.points:
+            painter.drawEllipse(pos, 4, 4)
+            
+    def setPixmap(self, img):
+        self.img = img
+        return super().setPixmap(img)
+        
+    def update_points(self, point):
+        self.points.append(point)
+        self.update()
+        
 
 class GUI(QWidget):
     def __init__(self, img):
@@ -18,11 +47,11 @@ class GUI(QWidget):
         
         # Images
         self.q_img = utils.np_to_qt(img)
-        self.label_img = QLabel()
+        self.img_label = ImageLabel(self.q_img)
         
         print('Image shape: ', self.width, self.height)
         self.mask = utils.np_to_qt(np.zeros((self.height,self.width,3)))
-        self.label_mask = QLabel()
+        self.mask_label = QLabel()
         
         # Settings bar
         self.in_label = QLabel('Input Directory: ')
@@ -33,13 +62,15 @@ class GUI(QWidget):
         self.out_btn_browse = QPushButton(text='Browse')
         self.out_path = QLabel()
         
-        self.spacer = QLabel()
-        self.btn_multi = QCheckBox('Multi-Mask')
+        self.mode_label = QLabel('Annotation Mode: ')
+        self.points_btn = QRadioButton('Points')
+        self.box_btn = QRadioButton('Box')
+        self.generate_btn = QPushButton('Generate Mask')
         self.file_box = QGridLayout()
         
         # Buttons
-        self.btn_prev = QPushButton('< Prev')
-        self.btn_next = QPushButton('Next >')
+        self.prev_btn = QPushButton('< Prev')
+        self.next_btn = QPushButton('Next >')
 
         # Console
         self.log_box = QTextEdit(readOnly=True)
@@ -58,7 +89,7 @@ class GUI(QWidget):
         self.out_path.setStyleSheet('border: 1px solid black;')
         self.out_path.setMinimumWidth(200)
         
-        self.spacer.setFixedWidth(int(400))
+        self.points_btn.setChecked(True)
         
         self.file_box.addWidget(self.in_label, 1, 1)
         self.file_box.addWidget(self.in_path, 1, 2)
@@ -68,22 +99,24 @@ class GUI(QWidget):
         self.file_box.addWidget(self.out_btn_browse, 2, 3)
         
         self.settings_layout.addLayout(self.file_box)
-        self.settings_layout.addWidget(self.spacer)
-        self.settings_layout.addWidget(self.btn_multi)
+        self.settings_layout.addStretch()
+        self.settings_layout.addWidget(self.mode_label)
+        self.settings_layout.addWidget(self.points_btn)
+        self.settings_layout.addWidget(self.box_btn)
+        self.settings_layout.addWidget(self.generate_btn)
         self.main_layout.addLayout(self.settings_layout)
         
         # Image layout
-        self.label_img.sizePolicy().setVerticalPolicy(QSizePolicy.Ignored)
-        self.label_img.setPixmap(self.q_img)
-        self.label_mask.setPixmap(self.mask)
+        self.mask_label.setPixmap(self.mask)
         
-        self.image_layout.addWidget(self.label_img)
-        self.image_layout.addWidget(self.label_mask)
+        self.image_layout.addWidget(self.img_label)
+        self.image_layout.addWidget(self.mask_label)
+        self.image_layout.addStretch()
         self.main_layout.addLayout(self.image_layout)
         
         # Buttons layout
-        self.btns_layout.addWidget(self.btn_prev)
-        self.btns_layout.addWidget(self.btn_next)
+        self.btns_layout.addWidget(self.prev_btn)
+        self.btns_layout.addWidget(self.next_btn)
         self.main_layout.addLayout(self.btns_layout)
         
         # Console layout
@@ -92,6 +125,3 @@ class GUI(QWidget):
         self.main_layout.addLayout(self.console_layout)
         
         self.setLayout(self.main_layout)
-
-    def draw_point(self, point):
-        ...
