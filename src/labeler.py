@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import functools
 import time
+from enum import Enum
 
 import config
 import utils
@@ -17,6 +18,12 @@ import torch
 import torchvision
 from segment_anything import SamPredictor, sam_model_registry
 cuda = torch.cuda.is_available()
+
+
+class SegmentMode(Enum):
+    SINGLE_POINT = 1
+    MULTI_POINT = 2
+    BOX = 3
 
 
 class MainWindow(QMainWindow):
@@ -32,14 +39,22 @@ class MainWindow(QMainWindow):
         self.check_size()
         
         self.segmentation_points = []
+        self.segment_mode = SegmentMode.SINGLE_POINT
 
         self.gui = GUI(self.img)
         self.setCentralWidget(self.gui)
+        
+        self.gui.in_path.setText(self.in_dir)
+        self.gui.out_path.setText(self.out_dir)
+        self.gui.generate_btn.setEnabled(False)
         
         self.gui.in_btn_browse.clicked.connect(lambda: self.getPath('input'))
         self.gui.out_btn_browse.clicked.connect(lambda: self.getPath('output'))
         self.gui.next_btn.clicked.connect(self.nextImage)
         self.gui.generate_btn.clicked.connect(self.generate_mask)
+        self.gui.single_point_btn.clicked.connect(lambda: self.change_mode(SegmentMode.SINGLE_POINT))
+        self.gui.multi_point_btn.clicked.connect(lambda: self.change_mode(SegmentMode.MULTI_POINT))
+        self.gui.box_btn.clicked.connect(lambda: self.change_mode(SegmentMode.BOX))
         self.gui.img_label.mousePressEvent = functools.partial(self.save_segmentation_point, source_object=self.gui.img_label.mousePressEvent)
         
         self.setGeometry(200, 100, 800, 500)
@@ -99,10 +114,11 @@ class MainWindow(QMainWindow):
         self.img_idx += 1
         if len(self.img_list) <= self.img_idx:
             self.log('End of dataset reached')
+            self.gui.next_btn.setEnabled(False)
             return
         
         # clear old points
-        self.segmentation_points.clear()
+        self.clear_points()
         
         # load new image
         self.img = cv2.imread(os.path.join(self.in_dir, self.img_list[self.img_idx]))
@@ -124,24 +140,42 @@ class MainWindow(QMainWindow):
             return
         
         print(f'Pointed logged at: {x},{y}')
-        self.gui.img_label.update_points(p)
         self.segmentation_points.append([x,y])
+        if self.segment_mode is SegmentMode.SINGLE_POINT:
+            self.generate_mask()
+        elif self.segment_mode is SegmentMode.MULTI_POINT:
+            self.gui.img_label.update_points(p)
+        
+        
 
     def generate_mask(self):
         if self.segmentation_points == []:
             return
         
-        masks, scores, logits = self.predictor.predict(point_coords=np.array(self.segmentation_points), 
-                                                        point_labels=np.array(np.arange(1,len(self.segmentation_points)+1))) # need to replace with actual labels
+        if self.segment_mode in [SegmentMode.SINGLE_POINT, SegmentMode.MULTI_POINT]:
+            masks, scores, logits = self.predictor.predict(point_coords=np.array(self.segmentation_points), 
+                                                            point_labels=np.array(np.full(len(self.segmentation_points),1))) # make all points foreground points
+            if self.segment_mode is SegmentMode.SINGLE_POINT:
+                self.clear_points()
+                print('Cleared Points')
+        else: # box mode
+            masks, scores, logits = self.predictor.predict(box=np.array(self.segmentation_points), 
+                                                            point_labels=np.array(np.arange(1,len(self.segmentation_points)+1))) 
         
-        # for mask in masks:
+        # process mask output
         mask = masks[0]
-        # color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
         color = np.random.randint(256, size=3, dtype=np.uint8)
         h, w = mask.shape[-2:]
         mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
+        
+        # combine masks
+        curr_mask = utils.qt_to_np(self.gui.mask_label.pixmap())
+        curr_mask = cv2.cvtColor(curr_mask, cv2.COLOR_RGBA2RGB)
+        mask_image = mask_image + curr_mask
+        mask_image = mask_image.clip(0, 255).astype("uint8")
         self.gui.mask_label.setPixmap(utils.np_to_qt(mask_image))
 
+    # debugging
     def mousePressEvent(self, QMouseEvent):
         p = QMouseEvent.pos()
         x,y = p.x(),p.y()
@@ -149,6 +183,21 @@ class MainWindow(QMainWindow):
         
         x1,y1,x2,y2 = self.gui.img_label.rect().getCoords()
         print(x1, y1, x2, y2)
+        
+    def change_mode(self, mode):
+        self.segment_mode = mode
+        match self.segment_mode:
+            case SegmentMode.SINGLE_POINT:
+                self.gui.generate_btn.setEnabled(False)
+            case SegmentMode.MULTI_POINT:
+                self.gui.generate_btn.setEnabled(True)
+            case SegmentMode.BOX:
+                self.gui.generate_btn.setEnabled(False)
+        self.clear_points()
+        
+    def clear_points(self):
+        self.segmentation_points.clear()
+        self.gui.img_label.clear_points()
         
     def log(self, msg):
         self.gui.log_box.append(msg)
@@ -170,42 +219,6 @@ def main():
     window.show()
     
     sys.exit(app.exec_())
-    
-        
-    
-    sam = sam_model_registry[config.MODEL_TYPE](config.CHECK_POINT)
-    sam.to(device='cuda')
-    predictor = SamPredictor(sam)
-    
-    img = cv2.imread('../imgs/in/test.png')
-    print('Image Shape: ', img.shape)
-
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    
-    def show_mask(mask):
-        color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
-        h, w = mask.shape[-2:]
-        mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
-        cv2.imshow('mask', mask_image)
-        
-    
-
-    def click(event, x, y, flags, params):
-        # checking for left mouse clicks
-        if event in [cv2.EVENT_LBUTTONDOWN, cv2.EVENT_RBUTTONDOWN]:
-            predictor.set_image(img)
-            print(x,y)
-            masks, scores, logits = predictor.predict(point_coords=np.array([[x, y]]), point_labels=np.array([1]))
-            show_mask(masks[0])
-            
-
-    
-    cv2.imshow('img', img)
-    cv2.setMouseCallback('img', click)
-
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-    
     
     
     

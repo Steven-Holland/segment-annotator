@@ -27,6 +27,10 @@ class ImageLabel(QLabel):
     def setPixmap(self, img):
         self.img = img
         return super().setPixmap(img)
+    
+    def clear_points(self):
+        self.points.clear()
+        self.update()
         
     def update_points(self, point):
         self.points.append(point)
@@ -63,7 +67,8 @@ class GUI(QWidget):
         self.out_path = QLabel()
         
         self.mode_label = QLabel('Annotation Mode: ')
-        self.points_btn = QRadioButton('Points')
+        self.single_point_btn = QRadioButton('Single-Point')
+        self.multi_point_btn = QRadioButton('Multi-Point')
         self.box_btn = QRadioButton('Box')
         self.generate_btn = QPushButton('Generate Mask')
         self.file_box = QGridLayout()
@@ -89,7 +94,7 @@ class GUI(QWidget):
         self.out_path.setStyleSheet('border: 1px solid black;')
         self.out_path.setMinimumWidth(200)
         
-        self.points_btn.setChecked(True)
+        self.single_point_btn.setChecked(True)
         
         self.file_box.addWidget(self.in_label, 1, 1)
         self.file_box.addWidget(self.in_path, 1, 2)
@@ -101,7 +106,8 @@ class GUI(QWidget):
         self.settings_layout.addLayout(self.file_box)
         self.settings_layout.addStretch()
         self.settings_layout.addWidget(self.mode_label)
-        self.settings_layout.addWidget(self.points_btn)
+        self.settings_layout.addWidget(self.single_point_btn)
+        self.settings_layout.addWidget(self.multi_point_btn)
         self.settings_layout.addWidget(self.box_btn)
         self.settings_layout.addWidget(self.generate_btn)
         self.main_layout.addLayout(self.settings_layout)
@@ -125,3 +131,6 @@ class GUI(QWidget):
         self.main_layout.addLayout(self.console_layout)
         
         self.setLayout(self.main_layout)
+
+    def clear_masks(self):
+        self.mask_label.setPixmap(utils.np_to_qt(np.zeros((self.height,self.width,3))))
