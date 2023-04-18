@@ -71,6 +71,7 @@ class GUI(QWidget):
         self.multi_point_btn = QRadioButton('Multi-Point')
         self.box_btn = QRadioButton('Box')
         self.generate_btn = QPushButton('Generate Mask')
+        self.clear_btn = QPushButton('Clear Masks')
         self.file_box = QGridLayout()
         
         # Buttons
@@ -110,11 +111,13 @@ class GUI(QWidget):
         self.settings_layout.addWidget(self.multi_point_btn)
         self.settings_layout.addWidget(self.box_btn)
         self.settings_layout.addWidget(self.generate_btn)
+        self.settings_layout.addWidget(self.clear_btn)
         self.main_layout.addLayout(self.settings_layout)
         
         # Image layout
         self.mask_label.setPixmap(self.mask)
         
+        self.image_layout.addStretch()
         self.image_layout.addWidget(self.img_label)
         self.image_layout.addWidget(self.mask_label)
         self.image_layout.addStretch()

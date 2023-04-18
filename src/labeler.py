@@ -55,9 +55,10 @@ class MainWindow(QMainWindow):
         self.gui.single_point_btn.clicked.connect(lambda: self.change_mode(SegmentMode.SINGLE_POINT))
         self.gui.multi_point_btn.clicked.connect(lambda: self.change_mode(SegmentMode.MULTI_POINT))
         self.gui.box_btn.clicked.connect(lambda: self.change_mode(SegmentMode.BOX))
+        self.gui.clear_btn.clicked.connect(self.clear_masks)
         self.gui.img_label.mousePressEvent = functools.partial(self.save_segmentation_point, source_object=self.gui.img_label.mousePressEvent)
         
-        self.setGeometry(200, 100, 800, 500)
+        self.setGeometry(200, 100, 960, 540)
         self.setWindowTitle("Labeler")
         
         self.config_model()
@@ -198,6 +199,9 @@ class MainWindow(QMainWindow):
     def clear_points(self):
         self.segmentation_points.clear()
         self.gui.img_label.clear_points()
+        
+    def clear_masks(self):
+        self.gui.mask_label.setPixmap(utils.np_to_qt(np.zeros((self.height,self.width,3))))
         
     def log(self, msg):
         self.gui.log_box.append(msg)
