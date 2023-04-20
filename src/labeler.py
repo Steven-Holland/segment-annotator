@@ -13,6 +13,7 @@ import utils
 from GUI import GUI
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QPixmap, QImage
+from PyQt5.QtCore import Qt
 
 import torch
 import torchvision
@@ -25,15 +26,22 @@ class SegmentMode(Enum):
     MULTI_POINT = 2
     BOX = 3
 
+class Toolbar(QToolBar):
+    def __init__(self):
+        super().__init__()
 
 class MainWindow(QMainWindow):
-    def __init__(self, in_dir, out_dir):
+    def __init__(self, in_dir, out_dir, resume_progress=False):
         super().__init__()
         
         self.in_dir = in_dir
         self.out_dir = out_dir
         self.img_idx = 0
         self.img_list = os.listdir(in_dir)
+        if resume_progress:
+            self.mask_list = os.listdir(out_dir)
+        else:
+            self.mask_list = []
         self.img = cv2.imread(os.path.join(in_dir, self.img_list[0]))
         self.height, self.width = self.img.shape[:2]
         self.check_size()
@@ -42,15 +50,20 @@ class MainWindow(QMainWindow):
         self.segment_mode = SegmentMode.SINGLE_POINT
 
         self.gui = GUI(self.img)
+        self.toolbar = Toolbar()
         self.setCentralWidget(self.gui)
+        self.addToolBar(Qt.LeftToolBarArea, self.toolbar)
         
         self.gui.in_path.setText(self.in_dir)
         self.gui.out_path.setText(self.out_dir)
+        self.gui.progress_label.setText(f'1/{len(self.img_list)} images')
         self.gui.generate_btn.setEnabled(False)
+        self.gui.prev_btn.setEnabled(False)
         
         self.gui.in_btn_browse.clicked.connect(lambda: self.getPath('input'))
         self.gui.out_btn_browse.clicked.connect(lambda: self.getPath('output'))
-        self.gui.next_btn.clicked.connect(self.nextImage)
+        self.gui.next_btn.clicked.connect(self.next_image)
+        self.gui.prev_btn.clicked.connect(self.prev_image)
         self.gui.generate_btn.clicked.connect(self.generate_mask)
         self.gui.single_point_btn.clicked.connect(lambda: self.change_mode(SegmentMode.SINGLE_POINT))
         self.gui.multi_point_btn.clicked.connect(lambda: self.change_mode(SegmentMode.MULTI_POINT))
@@ -95,17 +108,23 @@ class MainWindow(QMainWindow):
             for type in config.IMG_TYPES:
                 self.img_list.extend(glob.glob(os.path.join(path, type)))
             
-            self.nextImage()
+            self.next_image()
             self.gui.in_path.setText(path)
         elif IO == 'output':
             self.out_dir = path
             self.gui.out_path.setText(path)
 
-    def nextImage(self):
+    def next_image(self):
+        
+        if not self.gui.prev_btn.isEnabled():
+            self.gui.prev_btn.setEnabled(True)
         
         # save mask
         img_type = self.img_list[self.img_idx][-3:]
-        out_file = os.path.join(self.out_dir, self.img_list[self.img_idx][:-4] + '_mask.' + img_type)
+        mask_name = self.img_list[self.img_idx][:-4] + '_mask.' + img_type
+        if mask_name not in self.mask_list: # should prolly just use a set
+            self.mask_list.append(mask_name)
+        out_file = os.path.join(self.out_dir, mask_name)
         print(out_file)
         ret = self.gui.mask_label.pixmap().save(out_file, img_type)
         if not ret:
@@ -115,6 +134,7 @@ class MainWindow(QMainWindow):
         self.img_idx += 1
         if len(self.img_list) <= self.img_idx:
             self.log('End of dataset reached')
+            self.img_idx -= 1
             self.gui.next_btn.setEnabled(False)
             return
         
@@ -123,11 +143,40 @@ class MainWindow(QMainWindow):
         
         # load new image
         self.img = cv2.imread(os.path.join(self.in_dir, self.img_list[self.img_idx]))
+        self.height, self.width = self.img.shape[:2]
         self.check_size()
         self.predictor.set_image(self.img, 'BGR')
         
-        self.gui.mask_label.setPixmap(utils.np_to_qt(np.zeros((self.height,self.width,3))))
+        self.clear_masks()
+        if len(self.mask_list) >= self.img_idx + 1:
+            label = cv2.imread(os.path.join(self.out_dir, self.mask_list[self.img_idx]))
+            self.gui.mask_label.setPixmap(utils.np_to_qt(label))
+            
+        self.gui.progress_label.setText(f'{self.img_idx+1}/{len(self.img_list)} images')
         self.gui.img_label.setPixmap(utils.np_to_qt(self.img))
+    
+        
+    def prev_image(self):
+        self.img_idx -= 1
+        self.clear_points()
+        
+        last_mask = os.listdir(self.out_dir)[-1]
+        label = cv2.imread(os.path.join(self.out_dir, last_mask))
+        self.gui.mask_label.setPixmap(utils.np_to_qt(label))
+        
+        self.img = cv2.imread(os.path.join(self.in_dir, self.img_list[self.img_idx]))
+        self.height, self.width = self.img.shape[:2]
+        self.check_size()
+        self.predictor.set_image(self.img, 'BGR')
+        self.gui.img_label.setPixmap(utils.np_to_qt(self.img))
+        
+        if not self.gui.next_btn.isEnabled():
+            self.gui.next_btn.setEnabled(True)
+            
+        if self.img_idx == 0:
+            self.gui.prev_btn.setEnabled(False)
+        
+        self.gui.progress_label.setText(f'{self.img_idx+1}/{len(self.img_list)} images')
         
 
     def save_segmentation_point(self, event, source_object=None):
@@ -158,7 +207,6 @@ class MainWindow(QMainWindow):
                                                             point_labels=np.array(np.full(len(self.segmentation_points),1))) # make all points foreground points
             if self.segment_mode is SegmentMode.SINGLE_POINT:
                 self.clear_points()
-                print('Cleared Points')
         else: # box mode
             masks, scores, logits = self.predictor.predict(box=np.array(self.segmentation_points), 
                                                             point_labels=np.array(np.arange(1,len(self.segmentation_points)+1))) 

@@ -3,8 +3,8 @@ import functools
 
 import utils
 from PyQt5.QtWidgets import *
-from PyQt5.QtGui import QPixmap, QImage, QPainter, QBrush, QColor
-from PyQt5.QtCore import QPoint
+from PyQt5.QtGui import QPixmap, QImage, QPainter, QBrush, QColor, QFont
+from PyQt5.QtCore import Qt
 
 
 class ImageLabel(QLabel):
@@ -44,12 +44,14 @@ class GUI(QWidget):
         self.img = img
         self.height,self.width,_ = self.img.shape
         
-        self.image_layout = QHBoxLayout()
         self.settings_layout = QHBoxLayout()
+        self.center_layout = QVBoxLayout()
         self.btns_layout = QHBoxLayout()
         self.console_layout = QVBoxLayout()
         
         # Images
+        self.progress_label = QLabel()
+        self.image_layout = QHBoxLayout()
         self.q_img = utils.np_to_qt(img)
         self.img_label = ImageLabel(self.q_img)
         
@@ -116,12 +118,16 @@ class GUI(QWidget):
         
         # Image layout
         self.mask_label.setPixmap(self.mask)
+        self.progress_label.setAlignment(Qt.AlignCenter)
+        self.progress_label.setStyleSheet('font-size: 14pt;')
         
+        self.center_layout.addWidget(self.progress_label)
         self.image_layout.addStretch()
         self.image_layout.addWidget(self.img_label)
         self.image_layout.addWidget(self.mask_label)
         self.image_layout.addStretch()
-        self.main_layout.addLayout(self.image_layout)
+        self.center_layout.addLayout(self.image_layout)
+        self.main_layout.addLayout(self.center_layout)
         
         # Buttons layout
         self.btns_layout.addWidget(self.prev_btn)
