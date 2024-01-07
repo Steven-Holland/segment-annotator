@@ -3,14 +3,16 @@ import numpy as np
 import functools
 from pathlib import Path
 from enum import Enum
+import time
 
 import config
 import utils
+from sam_worker import SAM_worker
 from widgets.ImageLabel import ImageLabel
 
 from PyQt5.QtWidgets import *
-from PyQt5.QtGui import QPixmap, QImage
-from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QPixmap, QImage, QTextCursor
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
 
 import torch
 from segment_anything import SamPredictor, sam_model_registry
@@ -24,8 +26,18 @@ class SegmentMode(Enum):
         
 
 class Labeler(QWidget):
+    init_sam = pyqtSignal(np.ndarray)
+    
     def __init__(self, in_dir: Path, out_dir: Path, resume_progress=False):
         super().__init__()
+        
+        # initalize sam model on separate thread
+        self.sam = SAM_worker(cuda)
+        self.sam_thread = QThread()
+        self.sam.moveToThread(self.sam_thread)
+        self.sam_thread.start()
+        self.init_sam.connect(self.sam.config_model)
+        
         self.in_dir = in_dir
         self.out_dir = out_dir
         
@@ -36,14 +48,14 @@ class Labeler(QWidget):
         self.img = cv2.imread(str(self.img_list[0]))
         self.height, self.width = self.img.shape[:2]
         self.check_size()
+        self.init_sam.emit(self.img)
         
         self.segment_mode = SegmentMode.SINGLE_POINT
         self.segmentation_points = []
         
         self.initUI()
-        
-        self.config_model()
         self.layout()
+        
     
     def initUI(self):
         
@@ -104,6 +116,15 @@ class Labeler(QWidget):
         self.box_btn.clicked.connect(lambda: self.change_mode(SegmentMode.BOX))
         self.clear_btn.clicked.connect(self.clear_masks)
         self.img_label.mousePressEvent = functools.partial(self.save_segmentation_point, source_object=self.img_label.mousePressEvent)
+        self.sam.ready.connect(self.sam_ready)
+        
+        self.log(f'Cuda is available: ')
+        if cuda:
+            self.log('True', color='green', new_line=False)
+            self.log(f'Pytorch CUDA Version is {torch.version.cuda}')
+        else:
+            self.log('False', color='red', new_line=False)
+        self.log(f'Loading model {config.MODEL_TYPE} at checkpoint {config.CHECK_POINT}... ')
         
         
     def layout(self):
@@ -159,27 +180,12 @@ class Labeler(QWidget):
         
         self.setLayout(self.main_layout)
 
-    def config_model(self):
-        self.sam = sam_model_registry[config.MODEL_TYPE](config.CHECK_POINT)
-        
-        self.log(f'Cuda is available: {cuda}')
-        if cuda:
-            self.log(f'Pytorch CUDA Version is {torch.version.cuda}')
-            self.sam.to(device='cuda')
-            
-        self.log(f'Loading model {config.MODEL_TYPE} at checkpoint {config.CHECK_POINT}\n')
-            
-        self.predictor = SamPredictor(self.sam)
-        self.predictor.set_image(self.img, 'BGR')
-
         
     def getPath(self, IO):
         dlg = QFileDialog()
-        path = dlg.getOpenFileName(self, 
+        path = dlg.getExistingDirectory(self, 
                                     'Browse', 
-                                    Path.cwd(), 
-                                    f"Images ({' '.join(config.IMG_TYPES)})") 
-        path = path[0]
+                                    str(Path.cwd())) 
         print(path)
         if path == '':
             return
@@ -232,14 +238,14 @@ class Labeler(QWidget):
         self.img = cv2.imread(str(self.img_list[self.img_idx]))
         self.height, self.width = self.img.shape[:2]
         self.check_size()
-        self.predictor.set_image(self.img, 'BGR')
+        self.sam.set_image(self.img)
         
         self.clear_masks()
         print(len(self.mask_list), self.img_idx)
         if len(self.mask_list) > self.img_idx + 1:
             label = cv2.imread(str(self.mask_list[self.img_idx]))
             self.mask_label.setPixmap(utils.np_to_qt(label))
-            
+        
         self.progress_label.setText(f'{self.img_idx+1}/{len(self.img_list)} images')
         self.img_label.setPixmap(self.img)
     
@@ -254,7 +260,7 @@ class Labeler(QWidget):
         self.img = cv2.imread(str(self.img_list[self.img_idx]))
         self.height, self.width = self.img.shape[:2]
         self.check_size()
-        self.predictor.set_image(self.img, 'BGR')
+        self.sam.set_image(self.img)
         self.img_label.setPixmap(self.img)
         
         if not self.next_btn.isEnabled():
@@ -276,7 +282,6 @@ class Labeler(QWidget):
             self.log(f'Point ({x}, {y}) already selected for segmentation')
             return
         
-        print(f'Pointed logged at: {x},{y}')
         self.segmentation_points.append([x,y])
         if self.segment_mode is SegmentMode.SINGLE_POINT:
             self.generate_mask()
@@ -289,12 +294,12 @@ class Labeler(QWidget):
             return
         
         if self.segment_mode in [SegmentMode.SINGLE_POINT, SegmentMode.MULTI_POINT]:
-            masks, scores, logits = self.predictor.predict(point_coords=np.array(self.segmentation_points), 
+            masks, scores, logits = self.sam.predict(point_coords=np.array(self.segmentation_points), 
                                                             point_labels=np.array(np.full(len(self.segmentation_points),1))) # make all points foreground points
             if self.segment_mode is SegmentMode.SINGLE_POINT:
                 self.clear_points()
         else: # box mode
-            masks, scores, logits = self.predictor.predict(box=np.array(self.segmentation_points), 
+            masks, scores, logits = self.sam.predict(box=np.array(self.segmentation_points), 
                                                             point_labels=np.array(np.arange(1,len(self.segmentation_points)+1))) 
         
         # process mask output
@@ -336,12 +341,25 @@ class Labeler(QWidget):
         
     def clear_masks(self):
         self.mask_label.setPixmap(utils.np_to_qt(np.zeros((self.height,self.width,3))))
+
+    def sam_ready(self):
+        self.log('Ready', color='green', new_line=False)
+
+    def log(self, msg, color='white', new_line=True):
+        text = f"<span style=\" font-size:8pt; font-weight:400; color:{utils.color_dict[color]};\" >{msg}</span>"
         
-    def log(self, msg):
-        self.log_box.append(msg)
-        
+        if new_line:
+            self.log_box.append(text)
+        else:
+            self.log_box.moveCursor(QTextCursor.End)
+            self.log_box.textCursor().insertHtml(text)
+            self.log_box.moveCursor(QTextCursor.End)
+            
     def check_size(self):
         if (self.img.shape[0] > config.MAX_HEIGHT) or (self.img.shape[1] > config.MAX_WIDTH):
             self.img = cv2.resize(self.img, (640, 480))
             self.width = 640
             self.height = 480
+            
+    def __del__(self):
+        if self.sam_thread.isRunning: self.sam_thread.quit()

@@ -2,6 +2,13 @@ import numpy as np
 import cv2
 from PyQt5.QtGui import QPixmap, QImage
 
+color_dict = {
+    "white": "#FFFFFF",
+    "red": "#eb3434",
+    "yellow": "#ebe134",
+    "green": "#34eb34"
+}
+
 def np_to_qt(img):
     h, w, c = img.shape
     nbytes = img.itemsize
@@ -20,7 +27,3 @@ def qt_to_np(pixmap):
     s = img.bits().asstring(w * h * c)
     np_arr = np.fromstring(s, dtype=np.uint8).reshape((h, w, c)) 
     return np_arr
-    
-
-def addWidgets(layout, widgets, rows=0, cols=0):
-    ...
