@@ -2,7 +2,7 @@ import sys
 import os
 from pathlib import Path
 
-from labeler import Labeler
+from GUI import GUI
 
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import QFile, QTextStream
@@ -12,7 +12,7 @@ class MainWindow(QMainWindow):
     def __init__(self, in_dir, out_dir):
         super().__init__()
 
-        self.gui = Labeler(in_dir, out_dir)
+        self.gui = GUI(in_dir, out_dir)
         self.setCentralWidget(self.gui)
         
         self.setGeometry(200, 100, 960, 540)
@@ -31,7 +31,7 @@ def main():
     app.setStyleSheet(stream.readAll())
     
     window = MainWindow(in_dir=Path('..\imgs\in'), out_dir=Path('..\imgs\out'))
-    window.setWindowTitle('Spinnaker GUI')
+    window.setWindowTitle('Segmentation Labeler')
     window.show()
     
     sys.exit(app.exec_())

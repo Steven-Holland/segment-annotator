@@ -10,6 +10,7 @@ class SAM_worker(QObject):
     def __init__(self, cuda, parent=None):
         super(self.__class__, self).__init__(parent)
         self.cuda = cuda
+        self.configured = False
     
     @pyqtSlot(np.ndarray)
     def config_model(self, img):
@@ -18,12 +19,14 @@ class SAM_worker(QObject):
 
         self.predictor = SamPredictor(self.sam)
         self.set_image(img)
+        self.configured = True
         self.ready.emit()
     
     def set_image(self, img):
         self.predictor.set_image(img, 'BGR')
     
     def predict(self, *args, **kwargs):
+        if not self.configured: return ([], [], [])
         return self.predictor.predict(*args, **kwargs)
             
     

@@ -27,3 +27,8 @@ def qt_to_np(pixmap):
     s = img.bits().asstring(w * h * c)
     np_arr = np.fromstring(s, dtype=np.uint8).reshape((h, w, c)) 
     return np_arr
+
+# sets and returns value of new attr
+def set_attr(parent, name, val):
+    setattr(parent, name, val)
+    return getattr(parent, name)
