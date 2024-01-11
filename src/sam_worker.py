@@ -5,7 +5,7 @@ from segment_anything import SamPredictor, sam_model_registry
 import config
 
 class SAM_worker(QObject):
-    ready = pyqtSignal()
+    ready = pyqtSignal(bool)
     
     def __init__(self, cuda, parent=None):
         super(self.__class__, self).__init__(parent)
@@ -14,16 +14,20 @@ class SAM_worker(QObject):
     
     @pyqtSlot(np.ndarray)
     def config_model(self, img):
-        self.sam = sam_model_registry[config.MODEL_TYPE](config.CHECK_POINT)
+        try:
+            self.sam = sam_model_registry[config.MODEL_TYPE](config.CHECK_POINT)
+        except:
+            self.ready.emit(self.configured)
+            return
         if self.cuda: self.sam.to(device='cuda')
 
         self.predictor = SamPredictor(self.sam)
-        self.set_image(img)
         self.configured = True
-        self.ready.emit()
+        self.set_image(img)
+        self.ready.emit(self.configured)
     
     def set_image(self, img):
-        self.predictor.set_image(img, 'BGR')
+        if self.configured: self.predictor.set_image(img, 'BGR')
     
     def predict(self, *args, **kwargs):
         if not self.configured: return ([], [], [])

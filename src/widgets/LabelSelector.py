@@ -14,10 +14,13 @@ class LabelCheckBox(QCheckBox):
         
         self.initUI()
     
+    def __call__(self):
+        return {'label': self.label, 'color': self.color, 'value': self.value}
+
     def initUI(self):
         self.setText(f'{self.value} - {self.label}')
         self.setStyleSheet(f'''QCheckBox::indicator {{ background-color: {self.color} }};
-                           font-size: 12pt;''')
+                           font-size: 14pt;''')
         #checkbox.setStyleSheet('QCheckBox::indicator:checked { image: url(:/../assets/checked.png); }')
 
 
@@ -67,8 +70,10 @@ class NewLabelBox(QWidget):
         
 
 
-# works sorta like a QGroupBox
+# enforces mutual exclusion for checkboxes
 class LabelSelector(QFrame):
+    label_changed = pyqtSignal(dict)
+
     def __init__(self, title):
         super().__init__()
         
@@ -119,9 +124,11 @@ class LabelSelector(QFrame):
     @pyqtSlot()
     def receive_check(self):
         #print('Sender:', self.sender())
-        for label in self.labels:
+        for i, label in enumerate(self.labels):
             checkbox = getattr(self, label+'_btn')
-            if checkbox is self.sender(): continue
+            if checkbox is self.sender(): 
+                self.label_changed.emit(checkbox())
+                continue
             checkbox.setChecked(False)
     
     @pyqtSlot()

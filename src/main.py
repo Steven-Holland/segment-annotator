@@ -5,7 +5,7 @@ from pathlib import Path
 from GUI import GUI
 
 from PyQt5.QtWidgets import *
-from PyQt5.QtCore import QFile, QTextStream
+from PyQt5.QtCore import QFile, QTextStream, Qt
 
 
 class MainWindow(QMainWindow):
@@ -22,7 +22,11 @@ class MainWindow(QMainWindow):
 def main():
     os.chdir(Path(__file__).parent)
     
+    # enable high dpi scaling
+    # QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    # QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
     app = QApplication(sys.argv)
+
     
     # set stylesheet
     file = QFile("./assets/dark/stylesheet.qss")
@@ -30,7 +34,12 @@ def main():
     stream = QTextStream(file)
     app.setStyleSheet(stream.readAll())
     
-    window = MainWindow(in_dir=Path('..\imgs\in'), out_dir=Path('..\imgs\out'))
+    default_in = Path('..\imgs\in')
+    default_out = Path('..\imgs\out')
+    default_in.mkdir(parents=True, exist_ok=True)
+    default_out.mkdir(parents=True, exist_ok=True)
+
+    window = MainWindow(in_dir=default_in, out_dir=default_out)
     window.setWindowTitle('Segmentation Labeler')
     window.show()
     

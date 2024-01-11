@@ -14,7 +14,7 @@ from labeler import Labeler
 
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QPixmap, QImage, QTextCursor
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, pyqtSlot
 
 import torch
 from segment_anything import SamPredictor, sam_model_registry
@@ -48,7 +48,7 @@ class GUI(QWidget):
         self.mask_list = list(self.out_dir.iterdir()) if resume_progress else []
         self.curr_label = ''
             
-        self.img = cv2.imread(str(self.img_list[0]))
+        self.img = cv2.imread(str(self.img_list[0])) if self.img_list else np.zeros((240, 320, 3))
         self.height, self.width = self.img.shape[:2]
         self.check_size()
         self.init_sam.emit(self.img)
@@ -125,6 +125,7 @@ class GUI(QWidget):
         self.clear_btn.clicked.connect(self.clear_masks)
         self.img_label.mousePressEvent = functools.partial(self.save_segmentation_point, source_object=self.img_label.mousePressEvent)
         self.sam.ready.connect(self.sam_ready)
+        self.label_selector.label_changed.connect(self.set_label)
         
         self.log(f'Cuda is available: ')
         if cuda:
@@ -299,10 +300,9 @@ class GUI(QWidget):
             self.log(f'Point ({x}, {y}) already selected for segmentation', color='yellow')
             return
         
+        self.img_label.update_points(p)
         if self.segment_mode is SegmentMode.SINGLE_POINT:
             self.generate_mask()
-        elif self.segment_mode is SegmentMode.MULTI_POINT:
-            self.img_label.update_points(p)
         
         
     def generate_mask(self):
@@ -310,6 +310,10 @@ class GUI(QWidget):
         
         self.labeler.generate_mask(self.img_label.get_points(),
                                    self.curr_label)
+        
+        if self.segment_mode is SegmentMode.SINGLE_POINT:
+            self.clear_points()
+        self.mask_label.setPixmap(self.labeler.get_mask_image())
 
 
     # debugging
@@ -339,9 +343,17 @@ class GUI(QWidget):
     def clear_masks(self):
         self.mask_label.setPixmap(utils.np_to_qt(np.zeros((self.height,self.width,3))))
 
-    def sam_ready(self):
-        self.labeler = Labeler(self.sam)
-        self.log('Ready', color='green', new_line=False)
+    @pyqtSlot(dict)
+    def set_label(self, label_info):
+        self.curr_label = label_info
+
+    @pyqtSlot(bool)
+    def sam_ready(self, ret):
+        self.labeler = Labeler(self.sam, self.height, self.width)
+        if ret:
+            self.log('Ready', color='green', new_line=False)
+        else:
+            self.log('Failed', color='red', new_line=False)
 
     def log(self, msg, color='white', new_line=True):
         text = f'''<span style=\" font-size:8pt; font-weight:400; 
