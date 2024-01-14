@@ -26,7 +26,7 @@ class Annotation:
         color = np.array(tuple(int(color[i:i+2], 16) for i in (0, 2, 4))) # hex to [r,g,b]
 
         mask_image = new_mask.reshape(self.height, self.width, 1) * color.reshape(1, 1, -1) #(h, w, 3)
-        self.display_mask = self.display_mask + mask_image
+        self.display_mask = np.where(mask_image, mask_image, self.display_mask)
         self.display_mask = self.display_mask.clip(0, 255).astype("uint8")
         
     def get_mask(self):

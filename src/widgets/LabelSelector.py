@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import *
-from PyQt5.QtCore import Qt, pyqtSlot, pyqtSignal
+from PyQt5.QtCore import pyqtSlot, pyqtSignal
+from PyQt5.QtGui import QColor
 from utils import set_attr
-from PyQt5 import sip
 
 
 class LabelCheckBox(QCheckBox):
@@ -36,16 +36,19 @@ class NewLabelBox(QWidget):
         self.text_label = QLabel('Label Name:')
         self.text_field = QLineEdit()
         self.color_field = QColorDialog()
+        self.color_indicator = QLabel('           ')
         self.add_btn = QPushButton('Add')
         self.cancel_btn = QPushButton('Cancel')
         
-        self.color = None
+        self.color = '#ffffff'
         
         self.initUI()
         
     def initUI(self):
         self.top_layout.addWidget(self.text_label)
         self.top_layout.addWidget(self.text_field)
+        self.color_indicator.setStyleSheet(f'background-color: {self.color}')
+        self.top_layout.addWidget(self.color_indicator)
         self.top_layout.addWidget(self.add_btn)
         self.top_layout.addWidget(self.cancel_btn)
         
@@ -57,10 +60,22 @@ class NewLabelBox(QWidget):
         self.color_field.colorSelected.connect(self.set_color)
         self.add_btn.clicked.connect(self.ready)
         self.cancel_btn.clicked.connect(lambda: self.cancel.emit())
+        
+    def open(self):
+        self.setHidden(False)
+        self.color_field.open()
+        
+    def close(self):
+        self.setHidden(True)
+        self.color = '#ffffff'
+        self.color_field.setCurrentColor(QColor(self.color))
+        self.color_indicator.setStyleSheet(f'background-color: {self.color}')
+        self.text_field.setText('')
 
     @pyqtSlot()
     def set_color(self):
         self.color = self.color_field.currentColor().name() # hex
+        self.color_indicator.setStyleSheet(f'background-color: {self.color}')
         
     @pyqtSlot()
     def ready(self):
@@ -123,7 +138,6 @@ class LabelSelector(QFrame):
         
     @pyqtSlot()
     def receive_check(self):
-        #print('Sender:', self.sender())
         for i, label in enumerate(self.labels):
             checkbox = getattr(self, label+'_btn')
             if checkbox is self.sender(): 
@@ -135,9 +149,9 @@ class LabelSelector(QFrame):
     def new_label(self):
         if self.creating_label: return
         self.creating_label = True
-        self.new_label_box.setHidden(False)
+        self.new_label_box.open()
     
     def close_prompt(self):
-        self.new_label_box.setHidden(True)
+        self.new_label_box.close()
         self.creating_label = False
         
