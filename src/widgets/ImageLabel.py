@@ -27,9 +27,9 @@ class ImageLabel(QLabel):
         self.points.clear()
         self.update()
         
-    def update_points(self, point):
+    def update_points(self, point, draw=True):
         self.points.append(point)
-        self.update()
+        if draw: self.update()
         
     def get_points(self):
         points = [[p.x(), p.y()] for p in self.points]

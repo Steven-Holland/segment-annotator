@@ -37,7 +37,7 @@ class GUI(QWidget):
         self.sam = SAM_worker(cuda)
         self.sam_thread = QThread()
         self.sam.moveToThread(self.sam_thread)
-        self.sam_thread.start()
+        self.sam_thread.start(priority=QThread.TimeCriticalPriority)
         self.init_sam.connect(self.sam.config_model)
         
         self.in_dir = in_dir
@@ -53,8 +53,9 @@ class GUI(QWidget):
         self.check_size()
         self.init_sam.emit(self.img)
         
+        
+        self.labeler = None
         self.segment_mode = SegmentMode.SINGLE_POINT
-        self.segmentation_points = []
         
         self.initUI()
         self.layout()
@@ -231,13 +232,10 @@ class GUI(QWidget):
         img_type = self.img_list[self.img_idx].suffix[1:]
         mask_name = str(self.img_list[self.img_idx].stem) + '_mask.' + img_type
         out_file = self.out_dir / mask_name
-        if mask_name not in self.mask_list: # should prolly just use a set
-            self.mask_list.append(out_file)
-
-        print(out_file)
         
-        ret = self.mask_label.pixmap().save(str(out_file), img_type)
-        if not ret:
+        try:
+            np.save(out_file, self.labeler.get_mask())
+        except:
             self.log(f'Mask failed to save')
             return
         self.log(f'Mask saved to {out_file}')
@@ -250,19 +248,19 @@ class GUI(QWidget):
             return
         
         # clear old points
-        self.clear_points()
+        self.img_label.clear_points()
         
         # load new image
         self.img = cv2.imread(str(self.img_list[self.img_idx]))
         self.height, self.width = self.img.shape[:2]
         self.check_size()
-        self.sam.set_image(self.img)
+        self.labeler.next_annotation(self.img)
         
         self.clear_masks()
         print(len(self.mask_list), self.img_idx)
-        if len(self.mask_list) > self.img_idx + 1:
-            label = cv2.imread(str(self.mask_list[self.img_idx]))
-            self.mask_label.setPixmap(utils.np_to_qt(label))
+        # if len(self.mask_list) > self.img_idx + 1:
+        #     label = cv2.imread(str(self.mask_list[self.img_idx]))
+        #     self.mask_label.setPixmap(utils.np_to_qt(label))
         
         self.progress_label.setText(f'{self.img_idx+1}/{len(self.img_list)} images')
         self.img_label.setPixmap(self.img)
@@ -270,7 +268,7 @@ class GUI(QWidget):
         
     def prev_image(self):
         self.img_idx -= 1
-        self.clear_points()
+        self.img_label.clear_points()
         
         label = cv2.imread(str(self.mask_list[self.img_idx]))
         self.mask_label.setPixmap(utils.np_to_qt(label))
@@ -300,9 +298,11 @@ class GUI(QWidget):
             self.log(f'Point ({x}, {y}) already selected for segmentation', color='yellow')
             return
         
-        self.img_label.update_points(p)
         if self.segment_mode is SegmentMode.SINGLE_POINT:
+            self.img_label.update_points(p, draw=False)
             self.generate_mask()
+        else:
+            self.img_label.update_points(p)
         
         
     def generate_mask(self):
@@ -312,7 +312,7 @@ class GUI(QWidget):
                                    self.curr_label)
         
         if self.segment_mode is SegmentMode.SINGLE_POINT:
-            self.clear_points()
+            self.img_label.clear_points()
         self.mask_label.setPixmap(self.labeler.get_mask_image())
 
 
@@ -334,10 +334,6 @@ class GUI(QWidget):
                 self.generate_btn.setEnabled(True)
             case SegmentMode.BOX:
                 self.generate_btn.setEnabled(False)
-        self.clear_points()
-        
-    def clear_points(self):
-        self.segmentation_points.clear()
         self.img_label.clear_points()
         
     def clear_masks(self):
