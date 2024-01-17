@@ -50,26 +50,28 @@ class Labeler(QObject):
         self.annotations = [Annotation(height, width)]
         self.segment_mode = SegmentMode.SINGLE_POINT
         
-    def next_annotation(self, img):
-        self.sam.set_image(img)
-        h, w = img.shape[:2]
+    def next_annotation(self, img_path, h, w):
+        self.sam.set_image(img_path)
+
         self.annotations.append(Annotation(h, w))
         self.anno_idx += 1
         
     def generate_mask(self, points, label):
+        print(points)
         if points == []: 
             print('no points')
             return
         
-        label_arr = np.array(np.full(len(points), 1))
-        masks, scores, logits = self.sam.predict(point_coords=np.array(points), 
-                                                        point_labels=label_arr)
+        label_arr = np.full(len(points), 1)
+        masks = self.sam.predict(points=points, 
+                                pointlabel=label_arr)
        
         # process mask output
         if masks == []: 
             print('no masks')
             return
         mask = masks[0] #(h, w, 1)
+        print(np.unique(mask, return_counts=True))
         self.annotations[self.anno_idx].append(mask, label)
 
     

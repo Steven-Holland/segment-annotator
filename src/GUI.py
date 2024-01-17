@@ -28,7 +28,7 @@ class SegmentMode(Enum):
         
 
 class GUI(QWidget):
-    init_sam = pyqtSignal(np.ndarray)
+    init_sam = pyqtSignal(str)
     
     def __init__(self, in_dir: Path, out_dir: Path, resume_progress=False):
         super().__init__()
@@ -51,7 +51,8 @@ class GUI(QWidget):
         self.img = cv2.imread(str(self.img_list[0])) if self.img_list else np.zeros((240, 320, 3))
         self.height, self.width = self.img.shape[:2]
         self.check_size()
-        self.init_sam.emit(self.img)
+
+        self.init_sam.emit(str(self.img_list[0])) if self.img_list else self.init_sam.emit('')
         
         
         self.labeler = None
@@ -254,7 +255,7 @@ class GUI(QWidget):
         self.img = cv2.imread(str(self.img_list[self.img_idx]))
         self.height, self.width = self.img.shape[:2]
         self.check_size()
-        self.labeler.next_annotation(self.img)
+        self.labeler.next_annotation(self.img, self.height, self.width)
         
         self.clear_masks()
         print(len(self.mask_list), self.img_idx)
