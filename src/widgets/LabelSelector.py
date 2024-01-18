@@ -1,8 +1,10 @@
+from pathlib import Path
 from PyQt5.QtWidgets import *
-from PyQt5.QtCore import pyqtSlot, pyqtSignal
-from PyQt5.QtGui import QColor
+from PyQt5.QtCore import pyqtSlot, pyqtSignal, QSize, QUrl
+from PyQt5.QtGui import QColor, QIcon
 from utils import set_attr, read_config_file, write_config_file
 
+_icons_path = Path(__file__).parent.parent / 'assets/icons'
 
 class LabelCheckBox(QCheckBox):
     def __init__(self, label, color, val):
@@ -19,9 +21,13 @@ class LabelCheckBox(QCheckBox):
 
     def initUI(self):
         self.setText(f'{self.value} - {self.label}')
-        self.setStyleSheet(f'''QCheckBox::indicator {{ background-color: {self.color} }};
-                           font-size: 14pt;''')
-        #checkbox.setStyleSheet('QCheckBox::indicator:checked { image: url(:/../assets/checked.png); }')
+        self.setStyleSheet(f'''QCheckBox::indicator {{ 
+                           background-color: {self.color}}};
+                           font-size: 16pt;''')
+        
+        # url = QUrl().fromLocalFile(str(_icons_path / "checked.png"))
+        # self.setStyleSheet(f'''QCheckBox::indicator:checked {{ 
+        #                    image: url(:/assets/icons/checked.png); }}''')
 
 
 class NewLabelBox(QWidget):
@@ -93,11 +99,14 @@ class LabelSelector(QFrame):
         super().__init__()
         
         self.main_layout = QVBoxLayout()
+        self.header_layout = QHBoxLayout()
         self.title = QLabel(title)
+        self.delete_btn = QPushButton()
         self.new_label_btn = QPushButton('New Label')
         self.new_label_box = NewLabelBox()
         self.labels = {}
-        
+
+        self.label_count = 0
         self.creating_label = False
 
         self.initUI()
@@ -105,9 +114,15 @@ class LabelSelector(QFrame):
         
     def initUI(self):
         
-        self.main_layout.addWidget(self.title)
+        self.header_layout.addWidget(self.title)
+        icon = QIcon(str(_icons_path / 'delete_button.png'))
+        self.delete_btn.setIcon(icon)
+        self.delete_btn.setFixedSize(self.delete_btn.iconSize() + QSize(10, 10))
+        self.header_layout.addWidget(self.delete_btn)
+        self.main_layout.addLayout(self.header_layout)
         self.new_label_box.setHidden(True)
         self.main_layout.addWidget(self.new_label_box)
+        self.new_label_btn.setFixedWidth(150)
         self.main_layout.addWidget(self.new_label_btn)
         
         self.setLayout(self.main_layout)
@@ -117,27 +132,39 @@ class LabelSelector(QFrame):
         
         self.new_label_btn.clicked.connect(self.new_label)
         self.new_label_box.cancel.connect(self.close_prompt)
-        self.new_label_box.label_ready.connect(self.addLabel)
+        self.new_label_box.label_ready.connect(self.add_label)
+        self.delete_btn.clicked.connect(self.remove_label)
     
     def load_labels(self):
         self.labels = read_config_file('labels')        
         for label, color in self.labels.items():
-            self.addLabel(label, color)
+            self.add_label(label, color)
     
-    def addLabel(self, label, color):
+    def add_label(self, label, color):
         self.labels[label] = color
-        
-        checkbox = set_attr(self, label+'_btn', LabelCheckBox(label, color, len(self.labels)))
+        self.label_count += 1
+
+        checkbox = set_attr(self, label+'_btn', LabelCheckBox(label, color, self.label_count))
         self.main_layout.insertWidget(self.main_layout.count() - 1, checkbox)
         checkbox.clicked.connect(self.receive_check)
         
         self.close_prompt()
         write_config_file(self.labels, setting_name='labels')
+
+    def remove_label(self):
+        curr_label = self.activate_label()
+        checkbox = getattr(self, curr_label+'_btn')
+        self.main_layout.removeWidget(checkbox)
+        checkbox.deleteLater()
+
+        del self.labels[curr_label]
+        self.label_count -= 1
+        write_config_file(self.labels, setting_name='labels')
         
     def activate_label(self):
         for label, color in self.labels.items():
             checkbox = getattr(self, label+'_btn')
-            if checkbox.isActivate(): return label
+            if checkbox.isChecked(): return label
         return None
         
     @pyqtSlot()
