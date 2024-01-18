@@ -34,7 +34,7 @@ class SAM_worker(QObject):
         results = self.model(img_path, 
                             device=self.device, 
                             retina_masks=True, 
-                            imgsz=(194, 259), 
+                            imgsz=1024, 
                             conf=0.25,
                             iou=0.9)
         self.predictor = FastSAMPrompt(img_path, results, device=self.device)

@@ -338,6 +338,7 @@ class GUI(QWidget):
         self.img_label.clear_points()
         
     def clear_masks(self):
+        self.labeler.clear_mask()
         self.mask_label.setPixmap(utils.np_to_qt(np.zeros((self.height,self.width,3))))
 
     @pyqtSlot(dict)

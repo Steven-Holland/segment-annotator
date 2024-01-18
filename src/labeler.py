@@ -15,8 +15,7 @@ class Annotation:
     def __init__(self, height, width):
         self.height = height
         self.width = width
-        self.out_mask = np.zeros((height, width))
-        self.display_mask = np.zeros((height, width, 3))
+        self.clear_mask()
 
     def append(self, new_mask, label):
         new_mask_labeled = np.where(new_mask, label['value'], new_mask)
@@ -35,6 +34,10 @@ class Annotation:
     def get_mask_image(self):
         image = utils.np_to_qt(self.display_mask)
         return image
+    
+    def clear_mask(self):
+        self.out_mask = np.zeros((self.height, self.width))
+        self.display_mask = np.zeros((self.height, self.width, 3))
         
     def __len__(self):
         return len(self.masks)
@@ -80,6 +83,9 @@ class Labeler(QObject):
     
     def get_mask_image(self):
         return self.annotations[self.anno_idx].get_mask_image()
+    
+    def clear_mask(self):
+        self.annotations[self.anno_idx].clear_mask()
 
 
         # color = np.random.randint(256, size=3, dtype=np.uint8)
