@@ -6,7 +6,8 @@ _model_path.mkdir(parents=True, exist_ok=True)
 
 MODEL_TYPE = 'vit_h'
 CHECK_POINT = list(_model_path.iterdir())[0]
-print(CHECK_POINT)
+
+CONFIG_PATH = Path('./assets/user_config.json')
 
 MAX_WIDTH = 640
 MAX_HEIGHT = 480

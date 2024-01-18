@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import pyqtSlot, pyqtSignal
 from PyQt5.QtGui import QColor
-from utils import set_attr
+from utils import set_attr, read_config_file, write_config_file
 
 
 class LabelCheckBox(QCheckBox):
@@ -96,12 +96,12 @@ class LabelSelector(QFrame):
         self.title = QLabel(title)
         self.new_label_btn = QPushButton('New Label')
         self.new_label_box = NewLabelBox()
-        self.labels = []
+        self.labels = {}
         
         self.creating_label = False
-        self.num_labels = 0
 
         self.initUI()
+        self.load_labels()
         
     def initUI(self):
         
@@ -119,26 +119,30 @@ class LabelSelector(QFrame):
         self.new_label_box.cancel.connect(self.close_prompt)
         self.new_label_box.label_ready.connect(self.addLabel)
     
+    def load_labels(self):
+        self.labels = read_config_file('labels')        
+        for label, color in self.labels.items():
+            self.addLabel(label, color)
     
     def addLabel(self, label, color):
-        self.num_labels += 1
-        self.labels.append(label)
+        self.labels[label] = color
         
-        checkbox = set_attr(self, label+'_btn', LabelCheckBox(label, color, self.num_labels))
+        checkbox = set_attr(self, label+'_btn', LabelCheckBox(label, color, len(self.labels)))
         self.main_layout.insertWidget(self.main_layout.count() - 1, checkbox)
         checkbox.clicked.connect(self.receive_check)
         
         self.close_prompt()
+        write_config_file(self.labels, setting_name='labels')
         
     def activate_label(self):
-        for label in self.labels:
+        for label, color in self.labels.items():
             checkbox = getattr(self, label+'_btn')
             if checkbox.isActivate(): return label
         return None
         
     @pyqtSlot()
     def receive_check(self):
-        for i, label in enumerate(self.labels):
+        for label, color in self.labels.items():
             checkbox = getattr(self, label+'_btn')
             if checkbox is self.sender(): 
                 self.label_changed.emit(checkbox())

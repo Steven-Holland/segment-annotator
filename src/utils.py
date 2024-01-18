@@ -1,6 +1,10 @@
 import numpy as np
 import cv2
+from pathlib import Path
+import json
 from PyQt5.QtGui import QPixmap, QImage
+
+from config import CONFIG_PATH
 
 color_dict = {
     "white": "#FFFFFF",
@@ -32,3 +36,29 @@ def qt_to_np(pixmap):
 def set_attr(parent, name, val):
     setattr(parent, name, val)
     return getattr(parent, name)
+
+def read_config_file(setting_name=None):
+    with open(CONFIG_PATH, 'r') as f:
+        try:
+            data = json.load(f)
+            if setting_name:
+                data = data[setting_name]
+            return data
+        except:
+            print('Failed to load config')
+            return {}
+
+
+def write_config_file(data, setting_name=None):
+    new_data = data
+    if setting_name:
+        old_data = read_config_file()
+        new_data = old_data.copy()
+        new_data[setting_name] = data
+    with open(CONFIG_PATH, 'w') as f:
+        try:
+            json.dump(new_data, f, indent=4)
+        except:
+            print('Failed writing to config file')
+            return False
+    return True

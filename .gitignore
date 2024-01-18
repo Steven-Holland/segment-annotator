@@ -1,3 +1,4 @@
 src/assets/models/*
+src/assets/user_config.json
 *__pycache__
 imgs
