@@ -4,6 +4,7 @@ from PyQt5.QtCore import QObject
 from enum import Enum
 from sam_worker import SAM_worker
 import utils
+from config import MAX_WIDTH, MAX_HEIGHT
 
 class SegmentMode(Enum):
     SINGLE_POINT = 1
@@ -32,15 +33,17 @@ class Annotation:
         return self.out_mask
 
     def get_mask_image(self):
-        image = utils.np_to_qt(self.display_mask)
-        return image
+        if (self.height > MAX_HEIGHT) or (self.width > MAX_WIDTH):
+                new_width = round(self.width * (MAX_HEIGHT / self.height))
+                print('Old res:', self.height, self.width, '\nNew res:', MAX_HEIGHT, new_width)
+                resized = cv2.resize(self.display_mask, (new_width, MAX_HEIGHT))
+                return utils.np_to_qt(resized)
+        return utils.np_to_qt(self.display_mask)
     
     def clear_mask(self):
         self.out_mask = np.zeros((self.height, self.width))
         self.display_mask = np.zeros((self.height, self.width, 3))
-        
-    def __len__(self):
-        return len(self.masks)
+
     
 
 
@@ -56,11 +59,12 @@ class Labeler(QObject):
     def next_annotation(self, img_path, h, w):
         self.sam.set_image(img_path)
 
-        self.annotations.append(Annotation(h, w))
         self.anno_idx += 1
+        if len(self.annotations) <= self.anno_idx:
+            self.annotations.append(Annotation(h, w))
+        
         
     def generate_mask(self, points, label):
-        print(points)
         if points == []: 
             print('no points')
             return
@@ -74,7 +78,6 @@ class Labeler(QObject):
             print('no masks')
             return
         mask = masks[0] #(h, w, 1)
-        print(np.unique(mask, return_counts=True))
         self.annotations[self.anno_idx].append(mask, label)
 
     
@@ -87,17 +90,6 @@ class Labeler(QObject):
     def clear_mask(self):
         self.annotations[self.anno_idx].clear_mask()
 
-
-        # color = np.random.randint(256, size=3, dtype=np.uint8)
-        # h, w = mask.shape[-2:]
-        # mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1) #(h, w, 3)
-        
-        # # combine masks
-        # curr_mask = utils.qt_to_np(self.mask_label.pixmap())
-        # curr_mask = cv2.cvtColor(curr_mask, cv2.COLOR_RGBA2RGB)
-        # mask_image = mask_image + curr_mask
-        # mask_image = mask_image.clip(0, 255).astype("uint8")
-        # self.mask_label.setPixmap(utils.np_to_qt(mask_image))
         
         
         

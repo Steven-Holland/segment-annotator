@@ -46,7 +46,7 @@ class GUI(QWidget):
         self.img_idx = 0
         self.img_list = list(self.in_dir.iterdir())
         self.mask_list = list(self.out_dir.iterdir()) if resume_progress else []
-        self.curr_label = ''
+        self.curr_label = {}
             
         self.img = cv2.imread(str(self.img_list[0])) if self.img_list else np.zeros((240, 320, 3))
         self.height, self.width = self.img.shape[:2]
@@ -175,7 +175,7 @@ class GUI(QWidget):
         self.mask_label.setPixmap(self.mask)
         # self.img_label.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
         # self.image_layout.setSizeConstraint(QLayout.SetMinimumSize)
-        self.img_label.setFixedHeight(self.height)
+        self.img_label.setMaximumHeight(config.MAX_HEIGHT)
         self.progress_label.setAlignment(Qt.AlignCenter)
         self.progress_label.setStyleSheet('font-size: 14pt;')
         
@@ -231,7 +231,7 @@ class GUI(QWidget):
         
         # save mask
         img_type = self.img_list[self.img_idx].suffix[1:]
-        mask_name = str(self.img_list[self.img_idx].stem) + '_mask.' + img_type
+        mask_name = str(self.img_list[self.img_idx].stem) + '_mask'
         out_file = self.out_dir / mask_name
         
         try:
@@ -254,11 +254,12 @@ class GUI(QWidget):
         # load new image
         self.img = cv2.imread(str(self.img_list[self.img_idx]))
         self.height, self.width = self.img.shape[:2]
+        self.labeler.next_annotation(str(self.img_list[self.img_idx]), self.height, self.width)
         self.check_size()
-        self.labeler.next_annotation(self.img, self.height, self.width)
-        
+
+        self.mask_label.setPixmap(self.labeler.get_mask_image())
+
         self.clear_masks()
-        print(len(self.mask_list), self.img_idx)
         # if len(self.mask_list) > self.img_idx + 1:
         #     label = cv2.imread(str(self.mask_list[self.img_idx]))
         #     self.mask_label.setPixmap(utils.np_to_qt(label))
@@ -308,6 +309,10 @@ class GUI(QWidget):
         
     def generate_mask(self):
         if not self.labeler: return
+        if not self.curr_label:
+            self.img_label.clear_points()
+            self.log('No label selected!', color='yellow')
+            return
         
         self.labeler.generate_mask(self.img_label.get_points(),
                                    self.curr_label)
@@ -322,10 +327,7 @@ class GUI(QWidget):
         p = QMouseEvent.pos()
         x,y = p.x(),p.y()
         #self.log(f'Click at ({x}, {y})')
-        
-        x1,y1,x2,y2 = self.img_label.rect().getCoords()
-        print(x1, y1, x2, y2)
-        
+
     def change_mode(self, mode):
         self.segment_mode = mode
         match self.segment_mode:
@@ -366,9 +368,9 @@ class GUI(QWidget):
             
     def check_size(self):
         if (self.img.shape[0] > config.MAX_HEIGHT) or (self.img.shape[1] > config.MAX_WIDTH):
-            self.img = cv2.resize(self.img, (640, 480))
-            self.width = 640
-            self.height = 480
+            self.img = cv2.resize(self.img, (config.MAX_WIDTH, config.MAX_HEIGHT))
+            self.width = config.MAX_WIDTH
+            self.height = config.MAX_HEIGHT
             
     def __del__(self):
         if self.sam_thread.isRunning: self.sam_thread.quit()

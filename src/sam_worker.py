@@ -33,7 +33,8 @@ class SAM_worker(QObject):
         if not self.configured: return
         results = self.model(img_path, 
                             device=self.device, 
-                            retina_masks=True, 
+                            retina_masks=True,
+                            verbose=False, 
                             imgsz=1024, 
                             conf=0.25,
                             iou=0.9)

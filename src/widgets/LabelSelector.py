@@ -1,6 +1,6 @@
 from pathlib import Path
 from PyQt5.QtWidgets import *
-from PyQt5.QtCore import pyqtSlot, pyqtSignal, QSize, QUrl
+from PyQt5.QtCore import pyqtSlot, pyqtSignal, QSize, Qt
 from PyQt5.QtGui import QColor, QIcon
 from utils import set_attr, read_config_file, write_config_file
 
@@ -42,7 +42,7 @@ class NewLabelBox(QWidget):
         self.text_label = QLabel('Label Name:')
         self.text_field = QLineEdit()
         self.color_field = QColorDialog()
-        self.color_indicator = QLabel('           ')
+        self.color_indicator = QPushButton()
         self.add_btn = QPushButton('Add')
         self.cancel_btn = QPushButton('Cancel')
         
@@ -54,22 +54,28 @@ class NewLabelBox(QWidget):
         self.top_layout.addWidget(self.text_label)
         self.top_layout.addWidget(self.text_field)
         self.color_indicator.setStyleSheet(f'background-color: {self.color}')
+        self.color_indicator.setIcon(QIcon(str(_icons_path / 'color_selector.png')))
         self.top_layout.addWidget(self.color_indicator)
         self.top_layout.addWidget(self.add_btn)
         self.top_layout.addWidget(self.cancel_btn)
+        self.color_field.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.WindowCloseButtonHint) 
         
         self.main_layout.addLayout(self.top_layout)
-        self.main_layout.addWidget(self.color_field)
         
         self.setLayout(self.main_layout)
         
+        self.color_indicator.clicked.connect(self.prompt_color)
         self.color_field.colorSelected.connect(self.set_color)
         self.add_btn.clicked.connect(self.ready)
         self.cancel_btn.clicked.connect(lambda: self.cancel.emit())
         
+    def prompt_color(self):
+        self.color_field.show()
+        self.color_field.open()
+    
     def open(self):
         self.setHidden(False)
-        self.color_field.open()
+        self.prompt_color()
         
     def close(self):
         self.setHidden(True)
@@ -77,6 +83,7 @@ class NewLabelBox(QWidget):
         self.color_field.setCurrentColor(QColor(self.color))
         self.color_indicator.setStyleSheet(f'background-color: {self.color}')
         self.text_field.setText('')
+        self.color_field.hide()
 
     @pyqtSlot()
     def set_color(self):
@@ -152,7 +159,7 @@ class LabelSelector(QFrame):
         write_config_file(self.labels, setting_name='labels')
 
     def remove_label(self):
-        curr_label = self.activate_label()
+        curr_label = self.active_label()
         checkbox = getattr(self, curr_label+'_btn')
         self.main_layout.removeWidget(checkbox)
         checkbox.deleteLater()
@@ -161,7 +168,7 @@ class LabelSelector(QFrame):
         self.label_count -= 1
         write_config_file(self.labels, setting_name='labels')
         
-    def activate_label(self):
+    def active_label(self):
         for label, color in self.labels.items():
             checkbox = getattr(self, label+'_btn')
             if checkbox.isChecked(): return label
@@ -169,6 +176,9 @@ class LabelSelector(QFrame):
         
     @pyqtSlot()
     def receive_check(self):
+        if not self.active_label(): 
+            self.label_changed.emit({})
+            return
         for label, color in self.labels.items():
             checkbox = getattr(self, label+'_btn')
             if checkbox is self.sender(): 
