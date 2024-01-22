@@ -4,7 +4,7 @@ from PyQt5.QtCore import QThread, QObject, pyqtSignal, pyqtSlot
 from segment_anything import SamPredictor, sam_model_registry
 from fastsam import FastSAM, FastSAMPrompt
 from utils import smart_resize
-from config import MODEL_TYPE, CHECK_POINT, IMG_HEIGHT, IMG_WIDTH
+from config import MODEL_TYPE, CHECK_POINT, MAX_HEIGHT, MAX_WIDTH
 import time
 
 
@@ -72,7 +72,7 @@ class SAMWorker(QObject):
     
     def set_image(self, img_path):
         img = cv2.imread(img_path)
-        img = smart_resize(img, (IMG_WIDTH, IMG_HEIGHT))
+        img = smart_resize(img, (MAX_WIDTH, MAX_HEIGHT))
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         if self.configured: self.predictor.set_image(img)
     

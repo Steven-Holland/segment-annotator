@@ -9,7 +9,7 @@ CHECK_POINT = list(_model_path.iterdir())[1]
 
 CONFIG_PATH = Path('./assets/user_config.json')
 
-IMG_WIDTH = 320
-IMG_HEIGHT = 240
+MAX_WIDTH = 640
+MAX_HEIGHT = 640
 
 IMG_TYPES = ['*.png', '*.jpg', '*.xpm'] # maybe update later

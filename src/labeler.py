@@ -3,7 +3,7 @@ import cv2
 from PyQt5.QtCore import QObject
 from enum import Enum
 import utils
-from config import IMG_HEIGHT, IMG_WIDTH
+from config import MAX_HEIGHT, MAX_WIDTH
 
 class SegmentMode(Enum):
     SINGLE_POINT = 1
@@ -12,9 +12,9 @@ class SegmentMode(Enum):
 
 
 class Annotation:
-    def __init__(self, height, width):
-        self.height = height
-        self.width = width
+    def __init__(self, input_size, output_size):
+        self.height, self.width = input_size
+        self.out_height, self.out_width = output_size
         self.clear_mask()
 
     def append(self, new_mask, label):
@@ -29,13 +29,13 @@ class Annotation:
         self.display_mask = self.display_mask.clip(0, 255).astype("uint8")
         
     def get_mask(self):
-        return cv2.resize(self.out_mask, (self.width, self.height))
+        return cv2.resize(self.out_mask, (self.out_width, self.out_height))
 
     def get_mask_image(self):
-        resized = utils.smart_resize(self.display_mask, (IMG_WIDTH, IMG_HEIGHT))
-        return utils.np_to_qt(resized)
+        return utils.np_to_qt(self.display_mask)
     
     def clear_mask(self):
+        print('height:', self.height, 'width:', self.width)
         self.out_mask = np.zeros((self.height, self.width))
         self.display_mask = np.zeros((self.height, self.width, 3))
 
@@ -43,20 +43,20 @@ class Annotation:
 
 
 class Labeler(QObject):
-    def __init__(self, sam, height, width):
+    def __init__(self, sam, in_size, out_size):
         super().__init__()
         self.sam = sam
 
         self.anno_idx = 0
-        self.annotations = [Annotation(height, width)]
+        self.annotations = [Annotation(in_size, out_size)]
         self.segment_mode = SegmentMode.SINGLE_POINT
         
-    def next_annotation(self, img_path, h, w):
+    def next_annotation(self, img_path, in_size, out_size):
         self.sam.set_image(img_path)
 
         self.anno_idx += 1
         if len(self.annotations) <= self.anno_idx:
-            self.annotations.append(Annotation(h, w))
+            self.annotations.append(Annotation(in_size, out_size))
         
         
     def generate_mask(self, points, label):

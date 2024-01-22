@@ -72,8 +72,8 @@ def smart_resize(img, dsize):
     if height < target_height and width < target_width: 
         return resized
     elif height > width:
-        new_width = round(width * (target_height / height))
+        new_width = round(target_height * (width / height))
         return cv2.resize(resized, (new_width, target_height))
     else:
-        new_height = round(height * (target_height / width))
+        new_height = round(target_width * (height / width))
         return cv2.resize(resized, (target_width, new_height))

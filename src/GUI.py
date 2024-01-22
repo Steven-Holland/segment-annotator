@@ -5,7 +5,7 @@ from pathlib import Path
 from enum import Enum
 import time
 
-from config import MODEL_TYPE, CHECK_POINT, IMG_WIDTH, IMG_HEIGHT, IMG_TYPES
+from config import MODEL_TYPE, CHECK_POINT, MAX_WIDTH, MAX_HEIGHT, IMG_TYPES
 import utils
 from sam_worker import FastSAMWorker, SAMWorker
 from widgets.ImageLabel import ImageLabel
@@ -48,7 +48,7 @@ class GUI(QWidget):
         self.curr_label = {}
             
         self.img = cv2.imread(str(self.img_list[0])) if self.img_list else np.zeros((240, 320, 3))
-        self.height, self.width = self.img.shape[:2]
+        self.full_height, self.full_width = self.img.shape[:2]
         self.check_size()
 
         self.init_sam.emit(str(self.img_list[0])) if self.img_list else self.init_sam.emit('')
@@ -174,7 +174,7 @@ class GUI(QWidget):
         self.mask_label.setPixmap(self.mask)
         # self.img_label.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
         # self.image_layout.setSizeConstraint(QLayout.SetMinimumSize)
-        self.img_label.setMaximumHeight(IMG_HEIGHT)
+        self.img_label.setMaximumHeight(MAX_HEIGHT)
         self.progress_label.setAlignment(Qt.AlignCenter)
         self.progress_label.setStyleSheet('font-size: 14pt;')
         
@@ -252,9 +252,10 @@ class GUI(QWidget):
         
         # load new image
         self.img = cv2.imread(str(self.img_list[self.img_idx]))
-        self.height, self.width = self.img.shape[:2]
-        self.labeler.next_annotation(str(self.img_list[self.img_idx]), self.height, self.width)
+        h, w = self.img.shape[:2]
         self.check_size()
+        self.labeler.next_annotation(str(self.img_list[self.img_idx]), (self.height, self.width), (h, w))
+
 
         self.mask_label.setPixmap(self.labeler.get_mask_image())
 
@@ -348,7 +349,7 @@ class GUI(QWidget):
 
     @pyqtSlot(bool)
     def sam_ready(self, ret):
-        self.labeler = Labeler(self.sam, self.height, self.width)
+        self.labeler = Labeler(self.sam, (self.height, self.width), (self.full_height, self.full_width))
         if ret:
             self.log('Ready', color='green', new_line=False)
         else:
@@ -366,7 +367,7 @@ class GUI(QWidget):
             self.log_box.moveCursor(QTextCursor.End)
             
     def check_size(self):
-        self.img = utils.smart_resize(self.img, (IMG_WIDTH, IMG_HEIGHT))
+        self.img = utils.smart_resize(self.img, (MAX_WIDTH, MAX_HEIGHT))
         self.height, self.width = self.img.shape[:2]
             
     def __del__(self):
