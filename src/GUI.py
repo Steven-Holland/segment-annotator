@@ -5,9 +5,9 @@ from pathlib import Path
 from enum import Enum
 import time
 
-import config
+from config import MODEL_TYPE, CHECK_POINT, IMG_WIDTH, IMG_HEIGHT, IMG_TYPES
 import utils
-from sam_worker import SAM_worker
+from sam_worker import FastSAMWorker, SAMWorker
 from widgets.ImageLabel import ImageLabel
 from widgets.LabelSelector import LabelSelector
 from labeler import Labeler
@@ -17,7 +17,6 @@ from PyQt5.QtGui import QPixmap, QImage, QTextCursor
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, pyqtSlot
 
 import torch
-from segment_anything import SamPredictor, sam_model_registry
 cuda = torch.cuda.is_available()
 
 
@@ -34,7 +33,7 @@ class GUI(QWidget):
         super().__init__()
         
         # initalize sam model on separate thread
-        self.sam = SAM_worker(cuda)
+        self.sam = SAMWorker(cuda)
         self.sam_thread = QThread()
         self.sam.moveToThread(self.sam_thread)
         self.sam_thread.start(priority=QThread.TimeCriticalPriority)
@@ -135,7 +134,7 @@ class GUI(QWidget):
             self.log(f'Pytorch CUDA Version is {torch.version.cuda}')
         else:
             self.log('False', color='red', new_line=False)
-        self.log(f'Loading model {config.MODEL_TYPE} at checkpoint {config.CHECK_POINT}... ')
+        self.log(f'Loading model {MODEL_TYPE} at checkpoint {CHECK_POINT}... ')
         
         
     def layout(self):
@@ -175,7 +174,7 @@ class GUI(QWidget):
         self.mask_label.setPixmap(self.mask)
         # self.img_label.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
         # self.image_layout.setSizeConstraint(QLayout.SetMinimumSize)
-        self.img_label.setMaximumHeight(config.MAX_HEIGHT)
+        self.img_label.setMaximumHeight(IMG_HEIGHT)
         self.progress_label.setAlignment(Qt.AlignCenter)
         self.progress_label.setStyleSheet('font-size: 14pt;')
         
@@ -215,7 +214,7 @@ class GUI(QWidget):
             self.in_dir = path
             self.img_idx = 0
             self.img_list.clear()
-            for type in config.IMG_TYPES:
+            for type in IMG_TYPES:
                 self.img_list.extend(path.glob(type))
             
             self.next_image()
@@ -367,10 +366,8 @@ class GUI(QWidget):
             self.log_box.moveCursor(QTextCursor.End)
             
     def check_size(self):
-        if (self.img.shape[0] > config.MAX_HEIGHT) or (self.img.shape[1] > config.MAX_WIDTH):
-            self.img = cv2.resize(self.img, (config.MAX_WIDTH, config.MAX_HEIGHT))
-            self.width = config.MAX_WIDTH
-            self.height = config.MAX_HEIGHT
+        self.img = utils.smart_resize(self.img, (IMG_WIDTH, IMG_HEIGHT))
+        self.height, self.width = self.img.shape[:2]
             
     def __del__(self):
         if self.sam_thread.isRunning: self.sam_thread.quit()

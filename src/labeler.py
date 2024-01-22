@@ -2,9 +2,8 @@ import numpy as np
 import cv2
 from PyQt5.QtCore import QObject
 from enum import Enum
-from sam_worker import SAM_worker
 import utils
-from config import MAX_WIDTH, MAX_HEIGHT
+from config import IMG_HEIGHT, IMG_WIDTH
 
 class SegmentMode(Enum):
     SINGLE_POINT = 1
@@ -30,15 +29,11 @@ class Annotation:
         self.display_mask = self.display_mask.clip(0, 255).astype("uint8")
         
     def get_mask(self):
-        return self.out_mask
+        return cv2.resize(self.out_mask, (self.width, self.height))
 
     def get_mask_image(self):
-        if (self.height > MAX_HEIGHT) or (self.width > MAX_WIDTH):
-                new_width = round(self.width * (MAX_HEIGHT / self.height))
-                print('Old res:', self.height, self.width, '\nNew res:', MAX_HEIGHT, new_width)
-                resized = cv2.resize(self.display_mask, (new_width, MAX_HEIGHT))
-                return utils.np_to_qt(resized)
-        return utils.np_to_qt(self.display_mask)
+        resized = utils.smart_resize(self.display_mask, (IMG_WIDTH, IMG_HEIGHT))
+        return utils.np_to_qt(resized)
     
     def clear_mask(self):
         self.out_mask = np.zeros((self.height, self.width))
@@ -48,7 +43,7 @@ class Annotation:
 
 
 class Labeler(QObject):
-    def __init__(self, sam: SAM_worker, height: int, width: int):
+    def __init__(self, sam, height, width):
         super().__init__()
         self.sam = sam
 
@@ -70,8 +65,8 @@ class Labeler(QObject):
             return
         
         label_arr = np.full(len(points), 1)
-        masks = self.sam.predict(points=points, 
-                                pointlabel=label_arr)
+        masks = self.sam.predict(point_coords=np.array(points), 
+                                point_labels=label_arr)
        
         # process mask output
         if masks == []: 

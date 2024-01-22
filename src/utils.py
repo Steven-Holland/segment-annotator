@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 from pathlib import Path
+from copy import deepcopy
 import json
 from PyQt5.QtGui import QPixmap, QImage
 
@@ -62,3 +63,17 @@ def write_config_file(data, setting_name=None):
             print('Failed writing to config file')
             return False
     return True
+
+# resize image while maintaining aspect ratio
+def smart_resize(img, dsize):
+    height, width = img.shape[:2]
+    target_width, target_height = dsize
+    resized = deepcopy(img)
+    if height < target_height and width < target_width: 
+        return resized
+    elif height > width:
+        new_width = round(width * (target_height / height))
+        return cv2.resize(resized, (new_width, target_height))
+    else:
+        new_height = round(height * (target_height / width))
+        return cv2.resize(resized, (target_width, new_height))

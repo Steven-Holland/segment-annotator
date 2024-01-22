@@ -5,11 +5,11 @@ _model_path = _dir / 'assets' / 'models'
 _model_path.mkdir(parents=True, exist_ok=True)
 
 MODEL_TYPE = 'vit_h'
-CHECK_POINT = list(_model_path.iterdir())[0]
+CHECK_POINT = list(_model_path.iterdir())[1]
 
 CONFIG_PATH = Path('./assets/user_config.json')
 
-MAX_WIDTH = 320
-MAX_HEIGHT = 240
+IMG_WIDTH = 320
+IMG_HEIGHT = 240
 
 IMG_TYPES = ['*.png', '*.jpg', '*.xpm'] # maybe update later

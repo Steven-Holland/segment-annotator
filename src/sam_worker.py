@@ -3,11 +3,12 @@ import cv2
 from PyQt5.QtCore import QThread, QObject, pyqtSignal, pyqtSlot
 from segment_anything import SamPredictor, sam_model_registry
 from fastsam import FastSAM, FastSAMPrompt
-import config
+from utils import smart_resize
+from config import MODEL_TYPE, CHECK_POINT, IMG_HEIGHT, IMG_WIDTH
 import time
 
 
-class SAM_worker(QObject):
+class FastSAMWorker(QObject):
     ready = pyqtSignal(bool)
     
     def __init__(self, cuda, parent=None):
@@ -19,7 +20,7 @@ class SAM_worker(QObject):
     def config_model(self, img_path):
         start = time.time()
         try:
-            self.model = FastSAM(config.CHECK_POINT, task='segment')
+            self.model = FastSAM(CHECK_POINT, task='segment')
         except:
             self.ready.emit(self.configured)
             return
@@ -40,41 +41,45 @@ class SAM_worker(QObject):
                             iou=0.9)
         self.predictor = FastSAMPrompt(img_path, results, device=self.device)
     
+    def predict(self, point_coords=None, point_labels=None):
+        if not self.configured: return []
+        return self.predictor.point_prompt(points=point_coords,
+                                           pointlabel=point_labels)
+
+
+class SAMWorker(QObject):
+    ready = pyqtSignal(bool)
+    
+    def __init__(self, cuda, parent=None):
+        super(self.__class__, self).__init__(parent)
+        self.cuda = cuda
+        self.configured = False
+    
+    @pyqtSlot(str)
+    def config_model(self, img_path):
+        start = time.time()
+        try:
+            self.sam = sam_model_registry[MODEL_TYPE](CHECK_POINT)
+        except:
+            self.ready.emit(self.configured)
+            return
+        if self.cuda: self.sam.to(device='cuda')
+        self.predictor = SamPredictor(self.sam)
+        self.configured = True
+        self.set_image(img_path)
+        print(f'Config Time: {time.time() - start}')
+        self.ready.emit(self.configured)
+    
+    def set_image(self, img_path):
+        img = cv2.imread(img_path)
+        img = smart_resize(img, (IMG_WIDTH, IMG_HEIGHT))
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        if self.configured: self.predictor.set_image(img)
+    
     def predict(self, *args, **kwargs):
         if not self.configured: return []
-        return self.predictor.point_prompt(*args, **kwargs)
-
-
-# class SAM_worker(QObject):
-#     ready = pyqtSignal(bool)
-    
-#     def __init__(self, cuda, parent=None):
-#         super(self.__class__, self).__init__(parent)
-#         self.cuda = cuda
-#         self.configured = False
-    
-#     @pyqtSlot(np.ndarray)
-#     def config_model(self, img):
-#         start = time.time()
-#         try:
-#             self.sam = sam_model_registry[config.MODEL_TYPE](config.CHECK_POINT)
-#         except:
-#             self.ready.emit(self.configured)
-#             return
-#         if self.cuda: self.sam.to(device='cuda')
-#         self.predictor = SamPredictor(self.sam)
-#         self.configured = True
-#         self.set_image(img)
-#         print(f'Config Time: {time.time() - start}')
-#         self.ready.emit(self.configured)
-    
-#     def set_image(self, img):
-#         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-#         if self.configured: self.predictor.set_image(img)
-    
-#     def predict(self, *args, **kwargs):
-#         if not self.configured: return ([], [], [])
-#         return self.predictor.predict(*args, **kwargs)
+        masks, scores, logits = self.predictor.predict(*args, **kwargs)
+        return masks
 
 
             
