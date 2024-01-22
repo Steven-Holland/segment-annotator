@@ -35,7 +35,6 @@ class Annotation:
         return utils.np_to_qt(self.display_mask)
     
     def clear_mask(self):
-        print('height:', self.height, 'width:', self.width)
         self.out_mask = np.zeros((self.height, self.width))
         self.display_mask = np.zeros((self.height, self.width, 3))
 
@@ -57,6 +56,10 @@ class Labeler(QObject):
         self.anno_idx += 1
         if len(self.annotations) <= self.anno_idx:
             self.annotations.append(Annotation(in_size, out_size))
+            
+    def prev_annotation(self, img_path):
+        self.sam.set_image(img_path)
+        if self.anno_idx > 0: self.anno_idx -= 1
         
         
     def generate_mask(self, points, label):

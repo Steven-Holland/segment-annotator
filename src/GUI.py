@@ -13,7 +13,7 @@ from widgets.LabelSelector import LabelSelector
 from labeler import Labeler
 
 from PyQt5.QtWidgets import *
-from PyQt5.QtGui import QPixmap, QImage, QTextCursor
+from PyQt5.QtGui import QTextCursor
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, pyqtSlot
 
 import torch
@@ -172,9 +172,7 @@ class GUI(QWidget):
         
         # Image layout
         self.mask_label.setPixmap(self.mask)
-        # self.img_label.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
-        # self.image_layout.setSizeConstraint(QLayout.SetMinimumSize)
-        self.img_label.setMaximumHeight(MAX_HEIGHT)
+        self.img_label.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
         self.progress_label.setAlignment(Qt.AlignCenter)
         self.progress_label.setStyleSheet('font-size: 14pt;')
         
@@ -236,7 +234,7 @@ class GUI(QWidget):
         try:
             np.save(out_file, self.labeler.get_mask())
         except:
-            self.log(f'Mask failed to save')
+            self.log(f'Mask failed to save to {out_file}', color='red')
             return
         self.log(f'Mask saved to {out_file}')
         
@@ -247,38 +245,30 @@ class GUI(QWidget):
             self.next_btn.setEnabled(False)
             return
         
-        # clear old points
-        self.img_label.clear_points()
-        
         # load new image
         self.img = cv2.imread(str(self.img_list[self.img_idx]))
         h, w = self.img.shape[:2]
         self.check_size()
+        
         self.labeler.next_annotation(str(self.img_list[self.img_idx]), (self.height, self.width), (h, w))
-
-
         self.mask_label.setPixmap(self.labeler.get_mask_image())
-
-        self.clear_masks()
-        # if len(self.mask_list) > self.img_idx + 1:
-        #     label = cv2.imread(str(self.mask_list[self.img_idx]))
-        #     self.mask_label.setPixmap(utils.np_to_qt(label))
         
         self.progress_label.setText(f'{self.img_idx+1}/{len(self.img_list)} images')
         self.img_label.setPixmap(self.img)
+        
+        # clear old points
+        self.img_label.clear_points()
     
         
     def prev_image(self):
         self.img_idx -= 1
         self.img_label.clear_points()
         
-        label = cv2.imread(str(self.mask_list[self.img_idx]))
-        self.mask_label.setPixmap(utils.np_to_qt(label))
+        self.labeler.prev_annotation(str(self.img_list[self.img_idx]))
+        self.mask_label.setPixmap(self.labeler.get_mask_image())
         
         self.img = cv2.imread(str(self.img_list[self.img_idx]))
-        self.height, self.width = self.img.shape[:2]
         self.check_size()
-        self.sam.set_image(self.img)
         self.img_label.setPixmap(self.img)
         
         if not self.next_btn.isEnabled():
