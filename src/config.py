@@ -3,9 +3,11 @@ from pathlib import Path
 _dir = Path(__file__).parent
 _model_path = _dir / 'assets' / 'models'
 _model_path.mkdir(parents=True, exist_ok=True)
+_checkpoints = list(_model_path.iterdir())
 
 MODEL_TYPE = 'vit_h'
-CHECK_POINT = list(_model_path.iterdir())[2]
+SAM_CHECK_POINT = _checkpoints[2]
+FAST_SAM_CHECK_POINT = _checkpoints[1]
 
 CONFIG_PATH = Path('./assets/user_config.json')
 

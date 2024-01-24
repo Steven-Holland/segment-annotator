@@ -4,7 +4,7 @@ from PyQt5.QtCore import QThread, QObject, pyqtSignal, pyqtSlot
 from segment_anything import SamPredictor, sam_model_registry
 from fastsam import FastSAM, FastSAMPrompt
 from utils import smart_resize
-from config import MODEL_TYPE, CHECK_POINT, MAX_HEIGHT, MAX_WIDTH
+from config import MODEL_TYPE, SAM_CHECK_POINT, FAST_SAM_CHECK_POINT, MAX_HEIGHT, MAX_WIDTH
 import time
 
 
@@ -15,12 +15,13 @@ class FastSAMWorker(QObject):
         super(self.__class__, self).__init__(parent)
         self.device = 'cuda' if cuda else 'cpu'
         self.configured = False
+        self.check_point = FAST_SAM_CHECK_POINT
     
     @pyqtSlot(str)
     def config_model(self, img_path):
         start = time.time()
         try:
-            self.model = FastSAM(CHECK_POINT, task='segment')
+            self.model = FastSAM(self.check_point, task='segment')
         except:
             self.ready.emit(self.configured)
             return
@@ -45,6 +46,9 @@ class FastSAMWorker(QObject):
         if not self.configured: return []
         return self.predictor.point_prompt(points=point_coords,
                                            pointlabel=point_labels)
+    
+    def __str__(self):
+        return 'FastSAM'
 
 
 class SAMWorker(QObject):
@@ -54,12 +58,13 @@ class SAMWorker(QObject):
         super(self.__class__, self).__init__(parent)
         self.cuda = cuda
         self.configured = False
+        self.check_point = SAM_CHECK_POINT
     
     @pyqtSlot(str)
     def config_model(self, img_path):
         start = time.time()
         try:
-            self.sam = sam_model_registry[MODEL_TYPE](CHECK_POINT)
+            self.sam = sam_model_registry[MODEL_TYPE](self.check_point)
         except:
             self.ready.emit(self.configured)
             return
@@ -80,6 +85,9 @@ class SAMWorker(QObject):
         if not self.configured: return []
         masks, scores, logits = self.predictor.predict(*args, **kwargs)
         return masks
+    
+    def __str__(self):
+        return 'SAM'
 
 
             

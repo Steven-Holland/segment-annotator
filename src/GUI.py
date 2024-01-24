@@ -5,7 +5,7 @@ from pathlib import Path
 from enum import Enum
 import time
 
-from config import MODEL_TYPE, CHECK_POINT, MAX_WIDTH, MAX_HEIGHT, IMG_TYPES
+from config import MAX_WIDTH, MAX_HEIGHT, IMG_TYPES
 import utils
 from sam_worker import FastSAMWorker, SAMWorker
 from widgets.ImageLabel import ImageLabel
@@ -32,13 +32,6 @@ class GUI(QWidget):
     def __init__(self, in_dir: Path, out_dir: Path, resume_progress=False):
         super().__init__()
         
-        # initalize sam model on separate thread
-        self.sam = SAMWorker(cuda)
-        self.sam_thread = QThread()
-        self.sam.moveToThread(self.sam_thread)
-        self.sam_thread.start(priority=QThread.TimeCriticalPriority)
-        self.init_sam.connect(self.sam.config_model)
-        
         self.in_dir = in_dir
         self.out_dir = out_dir
         
@@ -51,9 +44,9 @@ class GUI(QWidget):
         self.full_height, self.full_width = self.img.shape[:2]
         self.check_size()
 
-        self.init_sam.emit(str(self.img_list[0])) if self.img_list else self.init_sam.emit('')
-        
-        
+        self.sam_thread = QThread()
+        self.init_model('SAM')
+
         self.labeler = None
         self.segment_mode = SegmentMode.SINGLE_POINT
         
@@ -90,6 +83,7 @@ class GUI(QWidget):
         self.out_label = QLabel('Output Directory: ')
         self.out_btn_browse = QPushButton(text='Browse')
         self.out_path = QLabel()
+        self.model_selector = QComboBox()
         
         self.mode_label = QLabel('Annotation Mode: ')
         self.single_point_btn = QRadioButton('Single-Point')
@@ -125,8 +119,8 @@ class GUI(QWidget):
         self.box_btn.clicked.connect(lambda: self.change_mode(SegmentMode.BOX))
         self.clear_btn.clicked.connect(self.clear_masks)
         self.img_label.mousePressEvent = functools.partial(self.save_segmentation_point, source_object=self.img_label.mousePressEvent)
-        self.sam.ready.connect(self.sam_ready)
         self.label_selector.label_changed.connect(self.set_label)
+        self.model_selector.activated.connect(self.change_model)
         
         self.log(f'Cuda is available: ')
         if cuda:
@@ -134,7 +128,8 @@ class GUI(QWidget):
             self.log(f'Pytorch CUDA Version is {torch.version.cuda}')
         else:
             self.log('False', color='red', new_line=False)
-        self.log(f'Loading model {MODEL_TYPE} at checkpoint {CHECK_POINT}... ')
+        self.log(f'Loading model {str(self.sam)} at checkpoint {self.sam.check_point}... ')
+        
         
         
     def layout(self):
@@ -161,6 +156,9 @@ class GUI(QWidget):
         self.settings_layout.addWidget(self.single_point_btn)
         self.settings_layout.addWidget(self.multi_point_btn)
         self.settings_layout.addWidget(self.box_btn)
+        self.model_selector.addItems(['SAM', 'FastSAM'])
+        self.model_selector.setCurrentIndex(self.model_selector.findText(str(self.sam)))
+        self.settings_layout.addWidget(self.model_selector)
         self.settings_layout.addWidget(self.generate_btn)
         self.settings_layout.addWidget(self.clear_btn)
         self.main_layout.addLayout(self.settings_layout)
@@ -318,6 +316,24 @@ class GUI(QWidget):
         x,y = p.x(),p.y()
         #self.log(f'Click at ({x}, {y})')
 
+    # initialize model on separate thread
+    def init_model(self, model_type):
+        if self.sam_thread.isRunning(): self.sam_thread.terminate()
+        if model_type == 'SAM':
+            self.sam = SAMWorker(cuda)
+        elif model_type == 'FastSAM':
+            self.sam = FastSAMWorker(cuda)
+        else:
+            print(f'Model {model_type} not found!')
+            return
+        self.log(f'Loading model {model_type} at checkpoint {self.sam.check_point}... ')
+        self.sam_thread = QThread()
+        self.sam.moveToThread(self.sam_thread)
+        self.sam_thread.start(priority=QThread.TimeCriticalPriority)
+        self.sam.ready.connect(self.sam_ready)
+        self.init_sam.connect(self.sam.config_model)
+        self.init_sam.emit(str(self.img_list[0])) if self.img_list else self.init_sam.emit('')
+
     def change_mode(self, mode):
         self.segment_mode = mode
         match self.segment_mode:
@@ -328,6 +344,12 @@ class GUI(QWidget):
             case SegmentMode.BOX:
                 self.generate_btn.setEnabled(False)
         self.img_label.clear_points()
+
+    def change_model(self):
+        model_name = self.model_selector.currentText()
+        if model_name == str(self.sam):
+            return
+        self.init_model(model_name)
         
     def clear_masks(self):
         self.labeler.clear_mask()
@@ -346,6 +368,7 @@ class GUI(QWidget):
             self.log('Failed', color='red', new_line=False)
 
     def log(self, msg, color='white', new_line=True):
+        if not hasattr(self, 'log_box'): return
         text = f'''<span style=\" font-size:8pt; font-weight:400; 
         color:{utils.color_dict[color]};\" >{msg}</span>'''
         
