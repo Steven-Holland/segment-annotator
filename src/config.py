@@ -5,7 +5,7 @@ _model_path = _dir / 'assets' / 'models'
 _model_path.mkdir(parents=True, exist_ok=True)
 
 MODEL_TYPE = 'vit_h'
-CHECK_POINT = list(_model_path.iterdir())[1]
+CHECK_POINT = list(_model_path.iterdir())[2]
 
 CONFIG_PATH = Path('./assets/user_config.json')
 
