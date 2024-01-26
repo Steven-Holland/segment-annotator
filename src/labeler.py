@@ -88,6 +88,9 @@ class Labeler(QObject):
     def clear_mask(self):
         self.annotations[self.anno_idx].clear_mask()
 
+    def update_sam(self, sam):
+        self.sam = sam
+
         
         
         

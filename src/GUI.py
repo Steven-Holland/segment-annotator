@@ -45,7 +45,9 @@ class GUI(QWidget):
         self.check_size()
 
         self.sam_thread = QThread()
-        self.init_model('SAM')
+        model_type = utils.read_config_file('model')
+        model_type = 'SAM' if not model_type else model_type
+        self.init_model(model_type)
 
         self.labeler = None
         self.segment_mode = SegmentMode.SINGLE_POINT
@@ -349,6 +351,7 @@ class GUI(QWidget):
         model_name = self.model_selector.currentText()
         if model_name == str(self.sam):
             return
+        utils.write_config_file(model_name, 'model')
         self.init_model(model_name)
         
     def clear_masks(self):
@@ -361,7 +364,11 @@ class GUI(QWidget):
 
     @pyqtSlot(bool)
     def sam_ready(self, ret):
-        self.labeler = Labeler(self.sam, (self.height, self.width), (self.full_height, self.full_width))
+        if not self.labeler:
+            self.labeler = Labeler(self.sam, (self.height, self.width), (self.full_height, self.full_width))
+        else:
+            self.labeler.update_sam(self.sam)
+        
         if ret:
             self.log('Ready', color='green', new_line=False)
         else:
