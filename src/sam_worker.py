@@ -44,8 +44,9 @@ class FastSAMWorker(QObject):
     
     def predict(self, point_coords=None, point_labels=None):
         if not self.configured: return []
-        return self.predictor.point_prompt(points=point_coords,
+        masks = self.predictor.point_prompt(points=point_coords,
                                            pointlabel=point_labels)
+        return [smart_resize(mask, (MAX_WIDTH, MAX_HEIGHT)) for mask in masks]
     
     def __str__(self):
         return 'FastSAM'

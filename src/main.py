@@ -7,17 +7,17 @@ from config import CONFIG_PATH
 from utils import write_config_file, read_config_file
 
 from PyQt5.QtWidgets import *
-from PyQt5.QtCore import QFile, QTextStream, Qt
+from PyQt5.QtCore import QFile, QTextStream, Qt, QSize
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, in_dir, out_dir):
+    def __init__(self, window_size, in_dir, out_dir):
         super().__init__()
 
         self.gui = GUI(in_dir, out_dir)
         self.setCentralWidget(self.gui)
         
-        self.setGeometry(200, 100, 960, 540)
+        self.setGeometry(0, 0, *window_size)
         
         
 def main():
@@ -27,7 +27,8 @@ def main():
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
     app = QApplication(sys.argv)
-
+    screen = app.primaryScreen()
+    rect = screen.availableGeometry()
     
     # set stylesheet
     file = QFile("./assets/dark/stylesheet.qss")
@@ -49,9 +50,9 @@ def main():
         in_dir = Path(read_config_file('input_folder'))
         out_dir = Path(read_config_file('output_folder'))
     
-    window = MainWindow(in_dir=in_dir, out_dir=out_dir)
+    window = MainWindow((rect.width(), rect.height()), in_dir=in_dir, out_dir=out_dir)
     window.setWindowTitle('Segmentation Labeler')
-    window.show()
+    window.showMaximized()
     
     sys.exit(app.exec_())
     
